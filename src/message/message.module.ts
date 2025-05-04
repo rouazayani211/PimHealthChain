@@ -2,12 +2,12 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MessageService } from './message.service';
 import { MessageController } from './message.controller';
-import { MessageGateway } from './message.gateway';
 import { Message, MessageSchema } from './entities/message.entity';
 import { User, UserSchema } from '../users/entities/user.entity';
 import { Conversation, ConversationSchema } from './entities/conversation.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MessagesGateway } from './message.gateway';
 
 @Module({
   imports: [
@@ -26,7 +26,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [MessageController],
-  providers: [MessageService, MessageGateway],
+  providers: [MessageService, MessagesGateway],
   exports: [MessageService],
 })
 export class MessageModule {}

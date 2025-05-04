@@ -17,10 +17,10 @@ import { CreateMessageDto } from './dto/create-message.dto';
 
 @WebSocketGateway({
   cors: {
-    origin: '*', // In production, set to your Flutter app's domain or localhost for development
+    origin: '*', // In production, set to your Flutter app's domain
   },
 })
-export class MessageGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -35,6 +35,7 @@ export class MessageGateway implements OnGatewayConnection, OnGatewayDisconnect 
     try {
       const token = client.handshake.auth.token || client.handshake.query.token;
       if (!token) {
+        console.log('Connection attempt without token');
         client.disconnect();
         return;
       }
@@ -49,6 +50,7 @@ export class MessageGateway implements OnGatewayConnection, OnGatewayDisconnect 
       client.join(userId);
     } catch (error) {
       console.error('WebSocket connection error:', error.message);
+      client.emit('error', error.message);
       client.disconnect();
     }
   }
@@ -107,5 +109,101 @@ export class MessageGateway implements OnGatewayConnection, OnGatewayDisconnect 
   ) {
     client.leave(data.roomId);
     return { success: true, roomId: data.roomId };
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('start_call')
+  handleStartCall(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { callId: string; callerId: string; callerName: string; recipientId: string; recipientName: string; callType: string },
+  ) {
+    if (!data.callId || !data.callerId || !data.recipientId) {
+      console.error('Missing required fields in start_call event');
+      client.emit('error', { message: 'Missing required fields' });
+      return;
+    }
+
+    const recipientSocket = this.connectedClients.get(data.recipientId);
+    if (recipientSocket) {
+      recipientSocket.emit('incoming_call', {
+        callId: data.callId,
+        callerId: data.callerId,
+        callerName: data.callerName,
+        recipientId: data.recipientId,
+        recipientName: data.recipientName,
+        callType: data.callType,
+      });
+      console.log(`Call initiated from ${data.callerId} to ${data.recipientId}`);
+    } else {
+      client.emit('call_rejected', {
+        callId: data.callId,
+        userId: data.recipientId,
+      });
+      console.log(`Recipient ${data.recipientId} not online`);
+    }
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('accept_call')
+  handleAcceptCall(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { callId: string; callerId: string; recipientId: string },
+  ) {
+    if (!data.callId || !data.callerId || !data.recipientId) {
+      console.error('Missing required fields in accept_call event');
+      client.emit('error', { message: 'Missing required fields' });
+      return;
+    }
+
+    const callerSocket = this.connectedClients.get(data.callerId);
+    if (callerSocket) {
+      callerSocket.emit('call_accepted', { callId: data.callId, callerId: data.callerId, recipientId: data.recipientId });
+      console.log(`Call ${data.callId} accepted by ${data.recipientId}`);
+    } else {
+      client.emit('error', { message: 'Caller not online' });
+      console.log(`Caller ${data.callerId} not online`);
+    }
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('reject_call')
+  handleRejectCall(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { callId: string; userId: string; callerId?: string; recipientId?: string },
+  ) {
+    if (!data.callId || !data.userId) {
+      console.error('Missing required fields in reject_call event');
+      client.emit('error', { message: 'Missing required fields' });
+      return;
+    }
+
+    const callData = {
+      callId: data.callId,
+      userId: data.userId,
+      callerId: data.callerId,
+      recipientId: data.recipientId,
+    };
+
+    // Notify the caller (if the rejector is the recipient)
+    if (data.callerId) {
+      const callerSocket = this.connectedClients.get(data.callerId);
+      if (callerSocket) {
+        callerSocket.emit('call_rejected', callData);
+        console.log(`Call ${data.callId} rejected by ${data.userId}`);
+      } else {
+        console.log(`Caller ${data.callerId} not online`);
+      }
+    }
+
+    // Notify the recipient (if the rejector is the caller)
+    if (data.recipientId) {
+      const recipientSocket = this.connectedClients.get(data.recipientId);
+      if (recipientSocket) {
+        recipientSocket.emit('call_rejected', callData);
+        console.log(`Call ${data.callId} rejected by ${data.userId}`);
+      } else {
+        console.log(`Recipient ${data.recipientId} not online`);
+      }
+    }
   }
 }
