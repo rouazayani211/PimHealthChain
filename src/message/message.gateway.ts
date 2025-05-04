@@ -17,7 +17,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 
 @WebSocketGateway({
   cors: {
-    origin: '*', // In production, set to your Flutter app's domain
+    origin: '*',
   },
 })
 export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -117,7 +117,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { callId: string; callerId: string; callerName: string; recipientId: string; recipientName: string; callType: string },
   ) {
-    if (!data.callId || !data.callerId || !data.recipientId) {
+    if (!data.callId || !data.callerId || !data.recipientId || !data.callerName) {
       console.error('Missing required fields in start_call event');
       client.emit('error', { message: 'Missing required fields' });
       return;
@@ -128,7 +128,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       recipientSocket.emit('incoming_call', {
         callId: data.callId,
         callerId: data.callerId,
-        callerName: data.callerName,
+        callerName: data.callerName, // Ensure callerName is passed correctly
         recipientId: data.recipientId,
         recipientName: data.recipientName,
         callType: data.callType,
@@ -184,7 +184,6 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       recipientId: data.recipientId,
     };
 
-    // Notify the caller (if the rejector is the recipient)
     if (data.callerId) {
       const callerSocket = this.connectedClients.get(data.callerId);
       if (callerSocket) {
@@ -195,7 +194,6 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
     }
 
-    // Notify the recipient (if the rejector is the caller)
     if (data.recipientId) {
       const recipientSocket = this.connectedClients.get(data.recipientId);
       if (recipientSocket) {
