@@ -21,16 +21,45 @@ export class UserService {
     console.log('UserService initialized');
   }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    console.log('Creating user:', createUserDto.email);
+  async create(createUserDto: CreateUserDto, file?: Express.Multer.File): Promise<User> {
+    console.log('Creating user:', createUserDto.email, 'Role:', createUserDto.role, 'Has file:', !!file);
+
+    // Validate doctorId for doctor role
+    if (createUserDto.role === 'doctor' && !createUserDto.doctorId) {
+      console.error('Doctor ID is required for doctor role');
+      throw new BadRequestException('Doctor ID is required for doctor role');
+    }
+
+    // Validate photo for doctor role
+    if (createUserDto.role === 'doctor' && !file) {
+      console.error('Profile photo is required for doctor role');
+      throw new BadRequestException('Profile photo is required for doctor role');
+    }
+
+    // Validate doctorId for non-doctor roles (should not be provided)
+    if (createUserDto.role !== 'doctor' && createUserDto.doctorId) {
+      console.error('Doctor ID is only allowed for doctor role');
+      throw new BadRequestException('Doctor ID is only allowed for doctor role');
+    }
+
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    const photoPath = file ? file.path : null; // Store file path or null
+
     const createdUser = new this.userModel({
       ...createUserDto,
       password: hashedPassword,
+      photo: photoPath, // Store file path for any user with a photo
+      doctorId: createUserDto.role === 'doctor' ? createUserDto.doctorId : null, // Set doctorId only for doctors
     });
-    const savedUser = await createdUser.save();
-    console.log('User created:', savedUser.email);
-    return savedUser;
+
+    try {
+      const savedUser = await createdUser.save();
+      console.log('User created:', savedUser.email, 'Photo:', savedUser.photo, 'DoctorId:', savedUser.doctorId);
+      return savedUser;
+    } catch (error) {
+      console.error('Failed to create user:', error.message);
+      throw new InternalServerErrorException('Failed to create user');
+    }
   }
 
   async login(loginUserDto: LoginUserDto): Promise<{ token: string }> {
@@ -128,5 +157,42 @@ export class UserService {
     }
 
     return { message: 'Password reset successfully' };
+  }
+
+  async findAllDoctors() {
+    try {
+      const doctors = await this.userModel.find({ role: 'doctor' }).select('-password');
+      return doctors;
+    } catch (error) {
+      throw new Error(`Failed to fetch doctors: ${error.message}`);
+    }
+  }
+
+  async findUserById(userId: string) {
+    try {
+      const user = await this.userModel.findById(userId).select('-password');
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return user;
+    } catch (error) {
+      throw new Error(`Failed to fetch user: ${error.message}`);
+    }
+  }
+
+  async findDoctorById(doctorId: string) {
+    try {
+      const doctor = await this.userModel.findOne({ 
+        _id: doctorId,
+        role: 'doctor'
+      }).select('-password');
+      
+      if (!doctor) {
+        throw new NotFoundException('Doctor not found');
+      }
+      return doctor;
+    } catch (error) {
+      throw new Error(`Failed to fetch doctor: ${error.message}`);
+    }
   }
 }

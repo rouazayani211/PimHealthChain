@@ -16,13 +16,16 @@ export class User extends Document {
   role: string;
 
   @Prop()
-  photo: string;
+  doctorId: string; // Optional, only for doctors
 
   @Prop()
-  otp: string; // Store OTP
+  photo: string; // Optional, for all users
 
   @Prop()
-  otpExpires: Date; // OTP expiration time
+  otp: string;
+
+  @Prop()
+  otpExpires: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

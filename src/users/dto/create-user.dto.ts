@@ -4,4 +4,5 @@ export class CreateUserDto {
     name: string;
     role: string;
     photo?: string;
+  doctorId?: string; // Optional, only for doctors
   }

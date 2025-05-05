@@ -6,12 +6,12 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UserModule } from './users/user.module';
 import { JwtModule } from '@nestjs/jwt';
 import { MessageModule } from './message/message.module';
+import { NftModule } from './nft/nft.module';
+import { NFTTimeAccessModule } from './blockchain/nft-time-access.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot(),
     MongooseModule.forRoot(process.env.MONGODB_URI),
     JwtModule.register({
       global: true,
@@ -20,8 +20,8 @@ import { MessageModule } from './message/message.module';
     }),
     UserModule,
     MessageModule,
-
-
+    NftModule,
+    NFTTimeAccessModule
   ],
   controllers: [AppController],
   providers: [AppService],
